@@ -124,6 +124,33 @@ public class DrawUtil {
         
     }
     
+    public void deleteWallVertical (int x, int y1, int y2) {
+        
+        int temp = brush;
+        brush = 0;
+        drawWallVertical(x, y1, y2);
+        brush = temp;
+        
+    }
+    
+    public void deleteWallHorizontal (int y, int x1, int x2) {
+        
+        int temp = brush;
+        brush = 0;
+        drawWallVertical(y, x1, x2);
+        brush = temp;
+        
+    }
+    
+    public void deleteWallArea (int x1, int y1, int x2, int y2) {
+        
+        int temp = brush;
+        brush = 0;
+        drawWallArea(x1, y1, x2, y2);
+        brush = temp;
+        
+    }
+    
     public void changeBrush (int newBrush) {
         brush = newBrush;
     }
