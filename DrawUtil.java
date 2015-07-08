@@ -5,6 +5,8 @@ public class DrawUtil {
     private final int w;
     private final int h;
     
+    private int brush = 1;
+    
     public DrawUtil (int[][] floor, int width, int height) {
         this.floor = floor;
         w = width;
@@ -21,14 +23,14 @@ public class DrawUtil {
         
         // Top and bottom sides plus corners
         for (int i = 0; i < w; i++) {
-            floor[i][h-1] = 1;
-            floor[i][h-2] = 1;
+            floor[i][h-1] = brush;
+            floor[i][h-2] = brush;
         }
         
         // Left and right sides minus corners
         for (int i = 0; i < h-2; i++) {
-            floor[w-1][i] = 1;
-            floor[w-2][i] = 1;
+            floor[w-1][i] = brush;
+            floor[w-2][i] = brush;
         }
         
     }
@@ -36,14 +38,7 @@ public class DrawUtil {
     public void drawWall (int x, int y) {
         
         if (!IndexUtil.goodCoords(x, y)) return;
-        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = 1;
-        
-    }
-    
-    public void deleteWall (int x, int y) {
-        
-        if (!IndexUtil.goodCoords(x, y)) return;
-        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = 0;
+        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = brush;
         
     }
     
@@ -58,7 +53,7 @@ public class DrawUtil {
         }
         
         for (int i = end1; i <= end2; i++) {
-            floor[IndexUtil.cI(x)][IndexUtil.cI(i)] = 1;
+            floor[IndexUtil.cI(x)][IndexUtil.cI(i)] = brush;
         }
         
     }
@@ -74,7 +69,7 @@ public class DrawUtil {
         }
         
         for (int i = end1; i <= end2; i++) {
-            floor[IndexUtil.cI(i)][IndexUtil.cI(y)] = 1;
+            floor[IndexUtil.cI(i)][IndexUtil.cI(y)] = brush;
         }
         
     }
@@ -105,7 +100,7 @@ public class DrawUtil {
         
         for (int i = x1; i <= x2; i++) {
             for (int j = y1; j <= y2; j++) {
-                floor[IndexUtil.cI(i)][IndexUtil.cI(j)] = 1;
+                floor[IndexUtil.cI(i)][IndexUtil.cI(j)] = brush;
             }
         }
         
@@ -120,6 +115,17 @@ public class DrawUtil {
         drawWallHorizontal(y1, x1, x2);
         drawWallHorizontal(y2, x1, x2);
         
+    }
+    
+    public void deleteWall (int x, int y) {
+        
+        if (!IndexUtil.goodCoords(x, y)) return;
+        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = 0;
+        
+    }
+    
+    public void changeBrush (int newBrush) {
+        brush = newBrush;
     }
     
 }
