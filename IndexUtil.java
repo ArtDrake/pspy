@@ -28,7 +28,6 @@ public class IndexUtil {
         return net*ei[type] + sx + type;
     }
     
-    
     // Ensures that a pair of coordinates is "good" -- within the bounds of the
     // level, and referring to a coordinate actually contained in the array.
     public static boolean goodCoords (int x, int y) {

@@ -1,7 +1,4 @@
-
 import java.util.ArrayList;
-
-
 
 public class GameUtil {
     
@@ -147,7 +144,6 @@ public class GameUtil {
         }
     }
     
-    
     // Returns whether a tile contains a wall.
     // Takes an x and y coordinate.
     public boolean tileClear (int x, int y) {
@@ -162,7 +158,5 @@ public class GameUtil {
         return tileClear(coords[0], coords[1]);
     }
     // none
-    
-    
     
 }
