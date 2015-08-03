@@ -72,19 +72,8 @@ public class GameShell implements KeyListener {
     /**
      * Holds all information about the current contents of the floor, including
      * players, enemies, destructible objects, walls, open floor, etc.
-     * Floor holds the floor layer's contents in an order that puts central tiles
-     * first, and alternates outward: 0, -1, 1, -2, 2, -3, 3, ...
-     * This may not be the best design -- it's intended to allow dynamic expansion
-     * outwards without modifying the inner (earlier) indices at all, but given
-     * that these are arrays and cannot be dynamically resized in the first place,
-     * I should probably just have an offset, and recopy the array each time I
-     * need to expand in a particular direction.
-     * The original reasoning was just that I liked the center being at 0, 0, so
-     * I worked around that idea to convert negative indices to positive ones.
-     * 
-     * This system necessitates the usage of index-to-coordinate and reverse conversions,
-     * performed through IndexUtil's static methods. A simple offset version would
-     * still necessitate them, but the operations would be less complicated.
+     * Floor holds the floor layer's contents left-to-right and bottom-to-top.
+     * This is a major improvement over the last nonsense system.
      * 
      * Contents does the same thing, but things on the contents level are fundamentally
      * separate from things on the floor level -- they sit on top of the floor, and
@@ -343,7 +332,7 @@ public class GameShell implements KeyListener {
      * @param y2
      * @return 
      */
-    public static boolean directLOS (int x1, int y1, int x2, int y2) {
+    public static Vis directLOS (int x1, int y1, int x2, int y2) {
         
         if (x1 > x2) {
             int temp = x2;
@@ -360,14 +349,14 @@ public class GameShell implements KeyListener {
         // Whether p2 is above p1.
         
         if (x1 == x2) {
-            if (y1 == y2) return true;
+            if (y1 == y2) return Vis.CLEAR;
             else for (int inc = up?1:-1, i = y1 + inc; i*inc < y2*inc; i += inc)
-                if (!ug.tileClear(x1, i)) return false;
-            return true;
+                if (!ug.tileClear(x1, i)) return Vis.BLOCKED;
+            return Vis.CLEAR;
         } else if (y1 == y2) {
             for (int i = x1 + 1; i < x2; i++)
-                if (!ug.tileClear(i, y1)) return false;
-            return true;
+                if (!ug.tileClear(i, y1)) return Vis.BLOCKED;
+            return Vis.CLEAR;
         // Those were the easy conditions -- if the tiles are horizontally or
         // vertically aligned with one another, or if they're in fact the same
         // tile, the preceding conditions will catch that and run simpler tests.
@@ -393,33 +382,36 @@ public class GameShell implements KeyListener {
             // relatively prime.
             
             if (k != 1) {
-                for (int i = 0, inf = 0, sup = d/k; i < k; i++) {
+                int inf = 0, sup = d/k;
+                for (int i = 0; i < k; i++) {
                     
                     int ddx = dx/k; // smaller horiz. length
                     int ddy = dy/k; // smaller vert.  length
                     
                     int[] r = utilLOS(x1 + i*ddx, y1 + i*ddy, ddx, ddy, up);
-                    if (r == null) return false; // Just in case.
+                    if (r == null) return Vis.BLOCKED; // Just in case.
                     
                     inf = r[0] > inf ? r[0] : inf; // Greatest lower bound on occlusion.
                     sup = r[1] < sup ? r[1] : sup; // Least upper bound, occlusion.
                     
-                    if (sup - inf < 0) return false;
+                    if (sup - inf < 0) return Vis.BLOCKED;
                     // If the least upper bound is less than the greatest lower bound,
                     // that means the interval of line-of-sight doesn't exist.
                     
                     // I made it so there had to be less than no way to see through,
                     // so corners would be visible.
                     
-                    if (i != 0 && !ug.tileClear(x1 + i*ddx, y1 + i*ddy)) return false;
+                    if (i != 0 && !ug.tileClear(x1 + i*ddx, y1 + i*ddy)) return Vis.BLOCKED;
                     // If one of the interceding tiles is standing square in the way,
                     // line-of-sight is blocked by it, regardless of the rest.
                     
                 }
-                return true; // If LOS is not confirmed blocked, it's clear.
+                return (sup - inf == d/k) ? Vis.CLEAR : Vis.PARTIAL;
+                // If LOS is not confirmed blocked, it's some form of clear.
             } else {
                 int[] r = utilLOS(x1, y1, dx, dy, up);
-                return r[1] - r[0] >= 0;
+                int aperture = r[1] - r[0];
+                return (aperture >= 0) ? ((aperture == d) ? Vis.CLEAR : Vis.PARTIAL) : Vis.BLOCKED;
                 // Essentially sup - inf.
             }
             
@@ -427,6 +419,7 @@ public class GameShell implements KeyListener {
         
     }
     
+    // Pretty much the same thing, but with fractions.
     public static double fracLOS (int x1, int y1, int x2, int y2) {
         
         if (x1 > x2) {
@@ -486,6 +479,7 @@ public class GameShell implements KeyListener {
     }
     // u
     
+    // Blah blah number theory.
     public static int[] utilLOS (int x, int y, int dx, int dy, boolean up) {
         
         if (!IndexUtil.goodCoords(x, y) || !IndexUtil.goodCoords(x+dx, y+dy)) return null;
@@ -576,8 +570,8 @@ public class GameShell implements KeyListener {
         if (!ug.tileClear(newCoords)) return;
         if (ug.tileHasObject(newCoords)) return;
         
-        contents[IndexUtil.cI(player.getX())][IndexUtil.cI(player.getY())] = 0;
-        contents[IndexUtil.cI(newCoords[0])][IndexUtil.cI(newCoords[1])] = 1;
+        contents[IndexUtil.cIx(player.getX())][IndexUtil.cIy(player.getY())] = 0;
+        contents[IndexUtil.cIx(newCoords[0])][IndexUtil.cIy(newCoords[1])] = 1;
         player.moveCoords(x, y);
         
     }
@@ -609,8 +603,8 @@ public class GameShell implements KeyListener {
         if (ug.tileHasObject(newCoords)) return;
         // Check that the destination is clear.
         
-        contents[IndexUtil.cI(entity.getX())][IndexUtil.cI(entity.getY())] = 0;
-        contents[IndexUtil.cI(newCoords[0])][IndexUtil.cI(newCoords[1])] = id;
+        contents[IndexUtil.cIx(entity.getX())][IndexUtil.cIy(entity.getY())] = 0;
+        contents[IndexUtil.cIx(newCoords[0])][IndexUtil.cIy(newCoords[1])] = id;
         
         entity.moveCoords(x, y);
         
@@ -627,7 +621,7 @@ public class GameShell implements KeyListener {
         int ix = ixAr.get(id);                  // Index in entities
         GameEntity entity = entities.get(ix);   // Retrieve the entity itself
         
-        contents[IndexUtil.cI(entity.getX())][IndexUtil.cI(entity.getY())] = 0;
+        contents[IndexUtil.cIx(entity.getX())][IndexUtil.cIy(entity.getY())] = 0;
         // Empty the tile.
         entities.set(ix, null);                 // Empty its index.
         deceased.add(ix);                       // Add it to the deceased.
@@ -659,7 +653,7 @@ public class GameShell implements KeyListener {
             for (int j = 0; j < entIndices[index]; j++) {
                 int ix = ux.typeIndex(type, j);
                 GameEntity e = entities.get(ixAr.get(ix));
-                contents[IndexUtil.cI(e.getX())][IndexUtil.cI(e.getY())] = ix;
+                contents[IndexUtil.cIx(e.getX())][IndexUtil.cIy(e.getY())] = ix;
             }
             // Update the contents array with the new indices of the living.
             
@@ -683,13 +677,17 @@ public class GameShell implements KeyListener {
             for (int x = -floorXRad; x <= floorXRad; x++) {
                 
                 String shown;
-                if (!directLOS(player.getX(), player.getY(), x, y)) shown = "&nbsp";
+                Vis v = directLOS(player.getX(), player.getY(), x, y);
+                if (v == Vis.BLOCKED) shown = "&nbsp";
+                else if (v == Vis.CLEAR) shown = ug.tileHasObject(x, y) 
+                        ? ug.displayObjChar(contents[IndexUtil.cIx(x)][IndexUtil.cIy(y)])
+                        : ug.displayFloorChar(floor[IndexUtil.cIx(x)][IndexUtil.cIy(y)]);
                 
                 else {
                     
                     shown = ug.tileHasObject(x, y) 
-                            ? ug.displayObjChar(contents[IndexUtil.cI(x)][IndexUtil.cI(y)])
-                            : ug.displayFloorChar(floor[IndexUtil.cI(x)][IndexUtil.cI(y)]);
+                            ? ug.displayObjChar(contents[IndexUtil.cIx(x)][IndexUtil.cIy(y)])
+                            : ug.displayFloorChar(floor[IndexUtil.cIx(x)][IndexUtil.cIy(y)]);
                     
                     String digit;
                     {   double visibility = fracLOS(player.getX(), player.getY(), x, y);
@@ -729,7 +727,7 @@ public class GameShell implements KeyListener {
         
         if (ug.tileClear(x, y) && !ug.tileHasObject(x, y)) {
             
-            contents[IndexUtil.cI(x)][IndexUtil.cI(y)] = 1;
+            contents[IndexUtil.cIx(x)][IndexUtil.cIy(y)] = 1;
             ug.expandToSize(ixAr, 2);
             ixAr.set(1, entities.size());
             
@@ -747,7 +745,7 @@ public class GameShell implements KeyListener {
         // Tile being spawned into must be clear of permawalls and entities.
             
             int index = ux.newIndex(type);
-            contents[IndexUtil.cI(x)][IndexUtil.cI(y)] = index;
+            contents[IndexUtil.cIx(x)][IndexUtil.cIy(y)] = index;
             ug.expandToSize(ixAr, index+1);
             // Make sure ixAr is big enough for the incoming entity.
             
@@ -786,6 +784,7 @@ public class GameShell implements KeyListener {
      */
     @Override
     public void keyPressed (KeyEvent e) {
+        if (inTurn) return;
         int keyCode = e.getKeyCode();
         switch (keyCode) {
             case 37: threadTurn(Move.LEFT); break;

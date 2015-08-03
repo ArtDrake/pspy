@@ -65,7 +65,7 @@ public class GameUtil {
      */
     public boolean tileHasObject (int x, int y) {
         if (!IndexUtil.goodCoords(x, y)) return false;
-        return contents[IndexUtil.cI(x)][IndexUtil.cI(y)] != 0;
+        return contents[IndexUtil.cIx(x)][IndexUtil.cIx(y)] != 0;
     }
     // contents
     
@@ -99,7 +99,7 @@ public class GameUtil {
     // Takes an x and y coordinate.
     public boolean tileClear (int x, int y) {
         if (!IndexUtil.goodCoords(x, y)) return false;
-        return floor[IndexUtil.cI(x)][IndexUtil.cI(y)] == 0;
+        return floor[IndexUtil.cIx(x)][IndexUtil.cIx(y)] == 0;
     }
     // floor
     

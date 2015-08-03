@@ -10,14 +10,20 @@ public class IndexUtil {
         ei = entIndices;
     }
     
-    public static int iC (int index) {
-        if (index % 2 == 0) return index/2;
-        else return -index/2 - 1;
+    public static int iCx (int index) {
+        return index - GameShell.floorXRad;
     }
     
-    public static int cI (int coord) {
-        if (coord < 0) return -coord*2 - 1;
-        else return coord*2;
+    public static int iCy (int index) {
+        return index - GameShell.floorYRad;
+    }
+    
+    public static int cIx (int coord) {
+        return coord + GameShell.floorXRad;
+    }
+    
+    public static int cIy (int coord) {
+        return coord + GameShell.floorYRad;
     }
     
     public int typeIndex (EntType type, int i) {

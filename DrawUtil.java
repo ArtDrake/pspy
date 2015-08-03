@@ -23,14 +23,14 @@ public class DrawUtil {
         
         // Top and bottom sides plus corners
         for (int i = 0; i < w; i++) {
+            floor[i][0] = brush;
             floor[i][h-1] = brush;
-            floor[i][h-2] = brush;
         }
         
         // Left and right sides minus corners
-        for (int i = 0; i < h-2; i++) {
+        for (int i = 1; i < h-1; i++) {
+            floor[0][i] = brush;
             floor[w-1][i] = brush;
-            floor[w-2][i] = brush;
         }
         
     }
@@ -38,7 +38,7 @@ public class DrawUtil {
     public void drawWall (int x, int y) {
         
         if (!IndexUtil.goodCoords(x, y)) return;
-        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = brush;
+        floor[IndexUtil.cIx(x)][IndexUtil.cIy(y)] = brush;
         
     }
     
@@ -53,7 +53,7 @@ public class DrawUtil {
         }
         
         for (int i = end1; i <= end2; i++) {
-            floor[IndexUtil.cI(x)][IndexUtil.cI(i)] = brush;
+            floor[IndexUtil.cIx(x)][IndexUtil.cIy(i)] = brush;
         }
         
     }
@@ -69,7 +69,7 @@ public class DrawUtil {
         }
         
         for (int i = end1; i <= end2; i++) {
-            floor[IndexUtil.cI(i)][IndexUtil.cI(y)] = brush;
+            floor[IndexUtil.cIx(i)][IndexUtil.cIy(y)] = brush;
         }
         
     }
@@ -100,7 +100,7 @@ public class DrawUtil {
         
         for (int i = x1; i <= x2; i++) {
             for (int j = y1; j <= y2; j++) {
-                floor[IndexUtil.cI(i)][IndexUtil.cI(j)] = brush;
+                floor[IndexUtil.cIx(i)][IndexUtil.cIy(j)] = brush;
             }
         }
         
@@ -120,7 +120,7 @@ public class DrawUtil {
     public void deleteWall (int x, int y) {
         
         if (!IndexUtil.goodCoords(x, y)) return;
-        floor[IndexUtil.cI(x)][IndexUtil.cI(y)] = 0;
+        floor[IndexUtil.cIx(x)][IndexUtil.cIy(y)] = 0;
         
     }
     
