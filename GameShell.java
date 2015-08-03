@@ -163,12 +163,24 @@ public class GameShell implements KeyListener {
      */
     private static final int startIndex = 2;
     
+    /**
+     * Keeps track of indices in entities freed by killing their occupants.
+     * Contrary to the name, deceased doesn't keep track of the indices of the
+     * deceased any longer than it takes to give them to something else. This
+     * partially counteracts the effects of the lack of cleanup that happens in
+     * the entities list. I reuse, but don't recycle, so to speak.
+     */
     private static final ArrayList<Integer> deceased = new ArrayList<>();
     
-    // Maybe make a utility that gives ixAr ID based on type and number.
-    
     private static GameEntity player = null;
+    // Initialize this so that if the player spawning fails, the null comparison
+    // can be made that'll shut the program down.
+    
     private static boolean inTurn = false;
+    // This is for preventing multiple turns from happening simultaneously -- each
+    // one takes a nonzero amount of time, and sometimes there are spikes. If the
+    // user is holding down a key, they might try to start a turn before the last
+    // one finished.
     
     /**
      * The "main frame" of the program, holding all graphical information.
@@ -184,11 +196,15 @@ public class GameShell implements KeyListener {
         
         mainText.setFont(new Font("Courier New", Font.PLAIN, 20));
         mainText.setForeground(Color.WHITE);
+        // White text
         
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainFrame.getContentPane().setPreferredSize(new Dimension(floorWidth*24+50, floorHeight*23+50));
         mainFrame.setResizable(false);
+        // I don't have enough control over Swing to make resizing an attractive
+        // option.
         mainFrame.getContentPane().setBackground(Color.BLACK);
+        // On a black background
         mainFrame.getContentPane().add(mainText, BorderLayout.CENTER);
         
         mainFrame.setLocationRelativeTo(null);
@@ -200,6 +216,11 @@ public class GameShell implements KeyListener {
     private static final GameUtil ug = new GameUtil(floor, contents);
     private static final DrawUtil ud = new DrawUtil(floor, floorWidth, floorHeight);
     private static final IndexUtil ux = new IndexUtil(numEntTypes, startIndex, entIndices);
+    
+    // These are instances of utility classes that I'm passing mostly private static
+    // variables -- I don't want just anyone to be able to access these critical
+    // data structures, but I do want to delegate some methods that deal mainly
+    // with specific lists over to other classes. The bloat is already real.
     
     ////////////////////////
     // METHODS START HERE //
@@ -235,15 +256,17 @@ public class GameShell implements KeyListener {
         spawnPlayer(0, 0);
         if (player == null) return;
         
-        spawnEntity(0, -3, -2);
-        spawnEntity(0, 1, 3);
-        spawnEntity(0, 1, 4);
+        spawnEntity(EntType.ENEMY, -3, -2);
+        spawnEntity(EntType.ENEMY, 1, 3);
+        spawnEntity(EntType.ENEMY, 1, 4);
         killEntity(4);
         cleanEntities();
         
-        spawnEntity(1, 0, 2);
-        spawnEntity(1, -2, 1);
-        spawnEntity(1, -3, -4);
+        // SpawnEntity's arguments are entity type and coordinates.
+        
+        spawnEntity(EntType.FURNITURE, 0, 2);
+        spawnEntity(EntType.FURNITURE, -2, 1);
+        spawnEntity(EntType.FURNITURE, -3, -4);
         
         printFloor();
         
@@ -550,13 +573,14 @@ public class GameShell implements KeyListener {
      */
     public static void killEntity (int id) {
         
-        int ix = ixAr.get(id);
-        GameEntity entity = entities.get(ix);
+        int ix = ixAr.get(id);                  // Index in entities
+        GameEntity entity = entities.get(ix);   // Retrieve the entity itself
         
         contents[IndexUtil.cI(entity.getX())][IndexUtil.cI(entity.getY())] = 0;
-        entities.set(ix, null);
-        deceased.add(ix);
-        ixAr.set(id, -1);
+        // Empty the tile.
+        entities.set(ix, null);                 // Empty its index.
+        deceased.add(ix);                       // Add it to the deceased.
+        ixAr.set(id, -1);                       // Mark it as deceased in ixAr.
         
     }
     // ixAr, entities, contents, deceased
@@ -656,12 +680,7 @@ public class GameShell implements KeyListener {
     }
     // contents, ixAr, entities, player, u
     
-    public static void spawnEntity (int type, int x, int y) {
-        
-        if (type >= numEntTypes) {
-            System.out.println("Called with bad type");
-            return;
-        }
+    public static void spawnEntity (EntType type, int x, int y) {
         
         if (ug.tileClear(x, y) && !ug.tileHasObject(x, y)) {
             
@@ -679,7 +698,7 @@ public class GameShell implements KeyListener {
                 entities.add(ug.newEnt(type, x, y));
             }
             
-            entIndices[type]++;
+            entIndices[type.ix]++;
             
         }
         

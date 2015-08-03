@@ -136,10 +136,10 @@ public class GameUtil {
         while (a.size() < size) a.add(null);
     }
     
-    public GameEntity newEnt (int type, int x, int y) {
+    public GameEntity newEnt (EntType type, int x, int y) {
         switch (type) {
-            case 0: return new Enemy(x, y);
-            case 1: return new Furniture(x, y);
+            case ENEMY: return new Enemy(x, y);
+            case FURNITURE: return new Furniture(x, y);
             default: return null;
         }
     }

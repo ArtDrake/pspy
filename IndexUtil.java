@@ -24,8 +24,8 @@ public class IndexUtil {
         return sx + type + net*i;
     }
     
-    public int newIndex (int type) {
-        return net*ei[type] + sx + type;
+    public int newIndex (EntType type) {
+        return net*ei[type.ix] + sx + type.ix;
     }
     
     // Ensures that a pair of coordinates is "good" -- within the bounds of the
