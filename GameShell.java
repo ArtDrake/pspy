@@ -62,28 +62,53 @@ public class GameShell implements KeyListener {
      * The actual width of the floor. Calculated from floorXRad to avoid
      * stupid contradictions.
      */
-    private static int floorWidth () {
-        return 2*floorXRad + 1;
-    }
+    private static final int floorWidth = 2*floorXRad + 1;
     
     /**
-     * @return The actual height of the floor.
+     * The actual height of the floor.
      */
-    public static int floorHeight () {
-        return 2*floorYRad + 1;
-    }
+    public static final int floorHeight = 2*floorYRad + 1;
     
     /**
      * Holds all information about the current contents of the floor, including
      * players, enemies, destructible objects, walls, open floor, etc.
+     * Floor holds the floor layer's contents in an order that puts central tiles
+     * first, and alternates outward: 0, -1, 1, -2, 2, -3, 3, ...
+     * This may not be the best design -- it's intended to allow dynamic expansion
+     * outwards without modifying the inner (earlier) indices at all, but given
+     * that these are arrays and cannot be dynamically resized in the first place,
+     * I should probably just have an offset, and recopy the array each time I
+     * need to expand in a particular direction.
+     * The original reasoning was just that I liked the center being at 0, 0, so
+     * I worked around that idea to convert negative indices to positive ones.
+     * 
+     * This system necessitates the usage of index-to-coordinate and reverse conversions,
+     * performed through IndexUtil's static methods. A simple offset version would
+     * still necessitate them, but the operations would be less complicated.
+     * 
+     * Contents does the same thing, but things on the contents level are fundamentally
+     * separate from things on the floor level -- they sit on top of the floor, and
+     * coexist with what's below, and in some cases interact with it; permawalls,
+     * which at this point are considered part of the floor, block movement of
+     * entities, which are universally on the contents level at this time.
      */
-    private static final int[][] floor = new int[floorWidth()][floorHeight()];
-    private static final int[][] contents = new int[floorWidth()][floorHeight()];
+    private static final int[][] floor = new int[floorWidth][floorHeight];
+    private static final int[][] contents = new int[floorWidth][floorHeight];
     
     /**
      * Holds the indices of the entities in entities. Serves as an intermediary
      * between the raw tile data and IDs and the entities themselves, and as a
      * sort of lookup table. (ixAr is short for index array)
+     * 
+     * This one is a little harder to explain. In contents, which is an int 2D
+     * array, numbers represent the entities. These numbers refer to the positions
+     * of entities in ixAr. Once the numbers have been used to find the entity's
+     * associated number here, the result is the index of the entity in the less
+     * organized, more all-inclusive array called 'entities'.
+     * 
+     * The entities themselves all have coordinates, so they can refer back to
+     * contents if necessary. Contents -> ixAr -> entities -> the entity -> contents.
+     * I'd propose that the entities themselves have their own ixAr IDs.
      */
     private static final ArrayList<Integer> ixAr = new ArrayList<>();
     
@@ -93,11 +118,49 @@ public class GameShell implements KeyListener {
      * the ixAr. Failing to support this will cause memory leakage, while doing
      * so will require integration of ixAr and entities with some new subclass
      * of ArrayList that keeps a child list updated.
+     * 
+     * The position of an entity in entities has no necessary correlation with
+     * its position in ixAr, so removing an entity from entities would have to
+     * consist of telling each one where to tell ixAr it now resides.
+     * 
+     * This is one of those tasks that it makes more sense to perform occasionally
+     * rather than constantly. I should figure out how often.
      */
     private static final ArrayList<GameEntity> entities = new ArrayList<>();
     
+    /**
+     * The number of distinct types of entities. This one is also a little
+     * weird. IxAr is organized. It's prepared for any quantity of any type of
+     * entity, but adds this space dynamically, on an as-needed basis.
+     * It does so, after a few reserved slots for special entities like the player,
+     * by taking the number of entity types n, and placing new entities of a given
+     * type every n indices, while leaving the n-1 spaces in between empty for
+     * any other entities that need to be recorded.
+     * It's technically not the most space-efficient method, but allows for quick
+     * and simple manipulation of entity-related data on a turn-by-turn basis --
+     * do a simple mod test for entity type, shift entities of a certain type into
+     * the place formerly taken by a deleted one by reducing their indices all by
+     * a set quantity (n). Access all entities of a certain type by index based
+     * only on how many there are. Etc.
+     * 
+     * It's not perfect -- there are arguments for forgoing this organizational
+     * system and abolishing ixAr.
+     */
     private static final int numEntTypes = 2;
+    
+    /**
+     * The numbers of indices held by each entity type.
+     * If this reads 2, 5, there are two Enemy entities and five Furniture entities.
+     * However, it's phrased in terms of indices held because it counts indices
+     * still held after death or destruction or other deletion. I.e., as yet to
+     * be cleaned up.
+     */
     private static final int[] entIndices = new int[numEntTypes];
+    
+    /**
+     * The number of indices held by special entities.
+     * Correspondingly, the starting point for the rest of the indices.
+     */
     private static final int startIndex = 2;
     
     private static final ArrayList<Integer> deceased = new ArrayList<>();
@@ -123,7 +186,7 @@ public class GameShell implements KeyListener {
         mainText.setForeground(Color.WHITE);
         
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        mainFrame.getContentPane().setPreferredSize(new Dimension(floorWidth()*24+50, floorHeight()*23+50));
+        mainFrame.getContentPane().setPreferredSize(new Dimension(floorWidth*24+50, floorHeight*23+50));
         mainFrame.setResizable(false);
         mainFrame.getContentPane().setBackground(Color.BLACK);
         mainFrame.getContentPane().add(mainText, BorderLayout.CENTER);
@@ -135,7 +198,7 @@ public class GameShell implements KeyListener {
     }
     
     private static final GameUtil ug = new GameUtil(floor, contents);
-    private static final DrawUtil ud = new DrawUtil(floor, floorWidth(), floorHeight());
+    private static final DrawUtil ud = new DrawUtil(floor, floorWidth, floorHeight);
     private static final IndexUtil ux = new IndexUtil(numEntTypes, startIndex, entIndices);
     
     ////////////////////////
