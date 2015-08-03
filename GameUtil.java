@@ -33,55 +33,6 @@ public class GameUtil {
         
     }
     
-    /**
-     * Holds the loop of continued prompting of the user for input on turns.
-     * Will eventually be outmoded, but not for a while. "quit" ends the loop,
-     * but will only end the program if whatever comes after it calls System.exit(0).
-     */
-    public void consoleLoop () {
-        
-        String input = "";
-        boolean needsInput = true;
-        boolean repeat = true;
-        
-        while (repeat) {
-            
-            if (needsInput) {
-                input = GameShell.keyboardInput.nextLine();
-                needsInput = false;
-            }
-            
-            if (input.equals("quit")) repeat = false;
-            else if (input.matches("[ijkl]+")) {
-                
-                char fChar = input.charAt(0);
-                input = input.substring(1);
-                GameShell.threadTurn(fChar);
-                
-            } else if (input.matches("rest [0-9]+")) {
-                
-                int dur = Integer.parseInt(input.substring(5));
-                
-                if (dur > 1) input = "r" + (dur-1);
-                else needsInput = true;
-                
-                if (dur > 0) GameShell.threadTurn('r');
-                
-            } else if (input.matches("r[ ]?[0-9]+")) {
-                
-                int dur = Integer.parseInt(input.substring(1));
-                
-                if (dur > 1) input = "r" + (dur-1);
-                else needsInput = true;
-                
-                if (dur > 0) GameShell.threadTurn('r');
-                
-            } else needsInput = true;
-            
-        }
-        
-    }
-    
     // Displays the character associated with this int code for an object.
     public String displayObjChar (int val) {
         switch (val) {

@@ -20,22 +20,24 @@ public class IndexUtil {
         else return coord*2;
     }
     
-    public int typeIndex (int type, int i) {
-        return sx + type + net*i;
+    public int typeIndex (EntType type, int i) {
+        return sx + type.ix + net*i;
+        // A formula for the index of a member of an entity type:
+        // start index + type index + number of types * member index.
     }
     
     public int newIndex (EntType type) {
         return net*ei[type.ix] + sx + type.ix;
+        // Given a particular type of entity, gives a good index for a new one.
     }
     
     // Ensures that a pair of coordinates is "good" -- within the bounds of the
     // level, and referring to a coordinate actually contained in the array.
     public static boolean goodCoords (int x, int y) {
         return x >= -GameShell.floorXRad 
-                && x <= GameShell.floorXRad 
-                && y >= -GameShell.floorYRad 
-                && y <= GameShell.floorYRad;
+            && x <=  GameShell.floorXRad 
+            && y >= -GameShell.floorYRad 
+            && y <=  GameShell.floorYRad;
     }
-    
     
 }

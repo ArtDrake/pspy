@@ -270,9 +270,9 @@ public class GameShell implements KeyListener {
         
         printFloor();
         
-        ug.consoleLoop();
+        while (true);
         
-        System.exit(0);
+        //System.exit(0);
         
     }
     
@@ -282,18 +282,18 @@ public class GameShell implements KeyListener {
      * Some characters may end up prompting the user for further input, like
      * choice of target.
      */
-    public static void gameTurn (char act) {
+    public static void gameTurn (Move act) {
         
         if (!inTurn) {
             
             inTurn = true;
             
             switch (act) {
-                case 'i': movePlayer(0, 1); break;
-                case 'j': movePlayer(-1, 0); break;
-                case 'k': movePlayer(0, -1); break;
-                case 'l': movePlayer(1, 0); break;
-                case 'r': break;
+                case UP: movePlayer(0, 1); break;
+                case LEFT: movePlayer(-1, 0); break;
+                case DOWN: movePlayer(0, -1); break;
+                case RIGHT: movePlayer(1, 0); break;
+                case WAIT: break;
                 default:
             }
 
@@ -310,7 +310,15 @@ public class GameShell implements KeyListener {
         
     }
     
-    public static void threadTurn (final char act) {
+    /**
+     * Puts the gameTurn method onto a new thread.
+     * This is intended to make sure the measure I put in place to prevent
+     * concurrent turns actually works properly. If I don't use this, despite
+     * the fact that events are technically all on distinct threads, the turns
+     * can start to overlap. Not quite sure why.
+     * @param act 
+     */
+    public static void threadTurn (final Move act) {
         
         new Thread(new Runnable() {
             @Override
@@ -321,6 +329,20 @@ public class GameShell implements KeyListener {
         
     }
     
+    /**
+     * Determines in a binary sense whether or not two squares can see
+     * one another.
+     * Specifically, the algorithm determines whether there exists a point in one
+     * tile that has line-of-sight to its counterpart in the second tile. This is
+     * not quite the same as determining whether there are any points in the two
+     * tiles that can 'see' one another at all, but it's close enough, and it
+     * doesn't treat diagonals unfairly.
+     * @param x1 
+     * @param y1
+     * @param x2
+     * @param y2
+     * @return 
+     */
     public static boolean directLOS (int x1, int y1, int x2, int y2) {
         
         if (x1 > x2) {
@@ -332,7 +354,10 @@ public class GameShell implements KeyListener {
             y1 = temp;
         }
         
+        // Switches the coordinate pairs so that p1 is on the left.
+        
         boolean up = y2 > y1;
+        // Whether p2 is above p1.
         
         if (x1 == x2) {
             if (y1 == y2) return true;
@@ -343,34 +368,59 @@ public class GameShell implements KeyListener {
             for (int i = x1 + 1; i < x2; i++)
                 if (!ug.tileClear(i, y1)) return false;
             return true;
+        // Those were the easy conditions -- if the tiles are horizontally or
+        // vertically aligned with one another, or if they're in fact the same
+        // tile, the preceding conditions will catch that and run simpler tests.
         } else {
             
-            int dx = x2 - x1;
-            int dy = y2 - y1;
-            int d = dx + (dy > 0 ? dy : -dy);
+            int dx = x2 - x1;                   // The horizontal distance.
+            int dy = y2 - y1;                   // The vertical distance (negative if p2 is below)
+            int d = dx + (dy > 0 ? dy : -dy);   // The sum (with absolute value of dy)
             int k = ug.gcd(dx, dy);
+            
+            // I'm using the gcd to determine how many tiles are precisely
+            // centered on the line between the two being tested.
+            
+            // The k!=1 section basically cuts up the test into several smaller
+            // tests, and checks the interceding tiles that are right on the line.
+            // (not to mention, ends the test prematurely line-of-sight is seen
+            //  to be blocked without testing every subtest)
+            // Then it compiles the results into a single bigger result, and
+            // does the same thing with it that the k==1 section does.
+            
+            // The k==1 section just does the straightforward but intensive version
+            // of the test, because there's no way around it. Dx and dy are
+            // relatively prime.
             
             if (k != 1) {
                 for (int i = 0, inf = 0, sup = d/k; i < k; i++) {
                     
-                    int ddx = dx/k;
-                    int ddy = dy/k;
+                    int ddx = dx/k; // smaller horiz. length
+                    int ddy = dy/k; // smaller vert.  length
                     
                     int[] r = utilLOS(x1 + i*ddx, y1 + i*ddy, ddx, ddy, up);
-                    if (r == null) return false;
+                    if (r == null) return false; // Just in case.
                     
-                    inf = r[0] > inf ? r[0] : inf;
-                    sup = r[1] < sup ? r[1] : sup;
+                    inf = r[0] > inf ? r[0] : inf; // Greatest lower bound on occlusion.
+                    sup = r[1] < sup ? r[1] : sup; // Least upper bound, occlusion.
                     
                     if (sup - inf < 0) return false;
+                    // If the least upper bound is less than the greatest lower bound,
+                    // that means the interval of line-of-sight doesn't exist.
+                    
+                    // I made it so there had to be less than no way to see through,
+                    // so corners would be visible.
                     
                     if (i != 0 && !ug.tileClear(x1 + i*ddx, y1 + i*ddy)) return false;
+                    // If one of the interceding tiles is standing square in the way,
+                    // line-of-sight is blocked by it, regardless of the rest.
                     
                 }
-                return true;
+                return true; // If LOS is not confirmed blocked, it's clear.
             } else {
                 int[] r = utilLOS(x1, y1, dx, dy, up);
                 return r[1] - r[0] >= 0;
+                // Essentially sup - inf.
             }
             
         }
@@ -557,6 +607,7 @@ public class GameShell implements KeyListener {
         
         if (!ug.tileClear(newCoords)) return;
         if (ug.tileHasObject(newCoords)) return;
+        // Check that the destination is clear.
         
         contents[IndexUtil.cI(entity.getX())][IndexUtil.cI(entity.getY())] = 0;
         contents[IndexUtil.cI(newCoords[0])][IndexUtil.cI(newCoords[1])] = id;
@@ -587,23 +638,30 @@ public class GameShell implements KeyListener {
     
     public static void cleanEntities () {
         
-        for (int i = 0; i < numEntTypes; i++) {
-            int k = 0;
-            for (int j = 0; j < entIndices[i]; j++) {
-                if (ixAr.get(ux.typeIndex(i, j)) == -1) {
-                    k++;
-                } else if (k > 0) {
-                    ixAr.set(ux.typeIndex(i, j-k), ixAr.get(ux.typeIndex(i, j)));
+        for (EntType type : EntType.values()) {             // Iterate through types.
+            int k = 0;                                      // Counter for deceased.
+            int index = type.ix;                            // Index of type.
+            {   int ei = entIndices[index];                 // Held indices of this type.
+                for (int j = 0; j < ei; j++) {              // Iterate through held indices.
+                    if (ixAr.get(ux.typeIndex(type, j)) == -1) {
+                        k++;
+                    } else if (k > 0) {
+                        ixAr.set(ux.typeIndex(type, j-k), ixAr.get(ux.typeIndex(type, j)));
+                        // Shift them down.
+                    }
                 }
+                for (int j = ei - k; j < ei; j++) ixAr.set(ux.typeIndex(type, j), null);
+                // Null for unused, instead of simply deceased.
             }
-            for (int j = entIndices[i] - k; j < entIndices[i]; j++) ixAr.set(ux.typeIndex(i, j), null);
-            entIndices[i] -= k;
+            entIndices[index] -= k;
+            // The deceased no longer hold their indices.
             
-            for (int j = 0; j < entIndices[i]; j++) {
-                int ix = ux.typeIndex(i, j);
+            for (int j = 0; j < entIndices[index]; j++) {
+                int ix = ux.typeIndex(type, j);
                 GameEntity e = entities.get(ixAr.get(ix));
                 contents[IndexUtil.cI(e.getX())][IndexUtil.cI(e.getY())] = ix;
             }
+            // Update the contents array with the new indices of the living.
             
         }
         
@@ -612,6 +670,9 @@ public class GameShell implements KeyListener {
     
     /**
      * Generates an HTML representation of the floor and transfers it to mainText.
+     * Don't pay too much attention to this method -- it's sloppy and I'd like
+     * to get rid of this display type as soon as possible. I just haven't found
+     * an acceptable substitute yet.
      */
     public static void printFloor () {
         
@@ -683,10 +744,12 @@ public class GameShell implements KeyListener {
     public static void spawnEntity (EntType type, int x, int y) {
         
         if (ug.tileClear(x, y) && !ug.tileHasObject(x, y)) {
+        // Tile being spawned into must be clear of permawalls and entities.
             
             int index = ux.newIndex(type);
             contents[IndexUtil.cI(x)][IndexUtil.cI(y)] = index;
             ug.expandToSize(ixAr, index+1);
+            // Make sure ixAr is big enough for the incoming entity.
             
             if (deceased.size() > 0) {
                 int ix = deceased.get(0);
@@ -697,6 +760,7 @@ public class GameShell implements KeyListener {
                 ixAr.set(index, entities.size());
                 entities.add(ug.newEnt(type, x, y));
             }
+            // Use deceased indices if possible.
             
             entIndices[type.ix]++;
             
@@ -724,11 +788,11 @@ public class GameShell implements KeyListener {
     public void keyPressed (KeyEvent e) {
         int keyCode = e.getKeyCode();
         switch (keyCode) {
-            case 37: threadTurn('j'); break;
-            case 38: threadTurn('i'); break;
-            case 39: threadTurn('l'); break;
-            case 40: threadTurn('k'); break;
-            case 46: threadTurn('r'); break;
+            case 37: threadTurn(Move.LEFT); break;
+            case 38: threadTurn(Move.UP); break;
+            case 39: threadTurn(Move.RIGHT); break;
+            case 40: threadTurn(Move.DOWN); break;
+            case 46: threadTurn(Move.WAIT); break;
             default:
         }
     }
