@@ -40,7 +40,10 @@ import java.awt.Font;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.*;
 
 public class GameShell implements KeyListener {
@@ -257,12 +260,17 @@ public class GameShell implements KeyListener {
         spawnEntity(EntType.FURNITURE, -2, 1);
         spawnEntity(EntType.FURNITURE, -3, -4);
         
-        printFloor();
+        shellInstance.printFloor();
         
         while (true);
         
         //System.exit(0);
         
+    }
+    
+    public GameShell () {
+        
+        //printFloor();
     }
     
     /**
@@ -271,7 +279,7 @@ public class GameShell implements KeyListener {
      * Some characters may end up prompting the user for further input, like
      * choice of target.
      */
-    public static void gameTurn (Move act) {
+    public void gameTurn (Move act) {
         
         if (!inTurn) {
             
@@ -307,7 +315,7 @@ public class GameShell implements KeyListener {
      * can start to overlap. Not quite sure why.
      * @param act 
      */
-    public static void threadTurn (final Move act) {
+    public void threadTurn (final Move act) {
         
         new Thread(new Runnable() {
             @Override
@@ -319,13 +327,13 @@ public class GameShell implements KeyListener {
     }
     
     /**
-     * Determines in a binary sense whether or not two squares can see
-     * one another.
+     * Determines whether or not two squares can see another clearly,
+     * partially, or not at all.
      * Specifically, the algorithm determines whether there exists a point in one
-     * tile that has line-of-sight to its counterpart in the second tile. This is
-     * not quite the same as determining whether there are any points in the two
-     * tiles that can 'see' one another at all, but it's close enough, and it
-     * doesn't treat diagonals unfairly.
+     * tile that has line-of-sight to its counterpart in the second tile, and if
+     * so, whether every point can do so. This is not quite the same as determining
+     * whether there are any points in the two tiles that can 'see' one another
+     * at all, but it's close enough, and it doesn't treat diagonals unfairly.
      * @param x1 
      * @param y1
      * @param x2
@@ -478,6 +486,61 @@ public class GameShell implements KeyListener {
         
     }
     // u
+    
+    public static VisDatum visLOS (int x1, int y1, int x2, int y2) {
+        
+        if (x1 > x2) {
+            int temp = x2;
+            x2 = x1;
+            x1 = temp;
+            temp = y2;
+            y2 = y1;
+            y1 = temp;
+        }
+        
+        boolean up = y2 > y1;
+        
+        int dx = x2 - x1;                   // The horizontal distance.
+        int dy = y2 - y1;                   // The vertical distance (negative if p2 is below)
+        int d = dx + (dy > 0 ? dy : -dy);   // The sum (with absolute value of dy)
+        int k = ug.gcd(dx, dy);
+        
+        if (k != 1) {
+            int inf = 0, sup = d/k;
+            for (int i = 0; i < k; i++) {
+
+                int ddx = dx/k; // smaller horiz. length
+                int ddy = dy/k; // smaller vert.  length
+
+                int[] r = utilLOS(x1 + i*ddx, y1 + i*ddy, ddx, ddy, up);
+                if (r == null) return VisDatum.BLOCKED; // Just in case.
+
+                inf = r[0] > inf ? r[0] : inf; // Greatest lower bound on occlusion.
+                sup = r[1] < sup ? r[1] : sup; // Least upper bound, occlusion.
+
+                if (sup - inf < 0) return VisDatum.BLOCKED;
+                // If the least upper bound is less than the greatest lower bound,
+                // that means the interval of line-of-sight doesn't exist.
+
+                // I made it so there had to be less than no way to see through,
+                // so corners would be visible.
+
+                if (i != 0 && !ug.tileClear(x1 + i*ddx, y1 + i*ddy)) return VisDatum.BLOCKED;
+                // If one of the interceding tiles is standing square in the way,
+                // line-of-sight is blocked by it, regardless of the rest.
+
+            }
+            return (sup - inf == d/k) ? VisDatum.CLEAR : new VisDatum(Vis.PARTIAL, (double)(sup - inf) / (d/k));
+            // If LOS is not confirmed blocked, it's some form of clear.
+        } else {
+            int[] r = utilLOS(x1, y1, dx, dy, up);
+            //System.out.println(Arrays.toString(new int[]{x1, y1, dx, dy}));
+            int aperture = r[1] - r[0];
+            return (aperture >= 0) ? ((aperture == d) ? VisDatum.CLEAR : new VisDatum(Vis.PARTIAL, (double)(r[1] - r[0]) / d)) : VisDatum.BLOCKED;
+            // Essentially sup - inf.
+        }
+        
+    }
     
     // Blah blah number theory.
     public static int[] utilLOS (int x, int y, int dx, int dy, boolean up) {
@@ -668,11 +731,46 @@ public class GameShell implements KeyListener {
      * to get rid of this display type as soon as possible. I just haven't found
      * an acceptable substitute yet.
      */
-    public static void printFloor () {
+    public void printFloor () {
+        
+        VisData vd = ug.floorVis(player.getX(), player.getY());
+        Vis[][] t = vd.ternary;
+        double[][] f = vd.fractional;
         
         String labelOutput = "<html>";
         
-        for (int y = floorYRad; y >= -floorYRad; y--) {
+        for (int y = floorHeight-1; y > -1; y--) {
+            for (int x = 0; x < floorWidth; x++) {
+                String shown;
+                Vis v = t[x][y];
+                switch (v) {
+                    case BLOCKED:
+                        shown = "&nbsp;";
+                        break;
+                    case CLEAR:
+                    case PARTIAL:
+                        shown = ug.tileHasObject(IndexUtil.iCx(x), IndexUtil.iCy(y)) 
+                                ? ug.displayObjChar(contents[x][y])
+                                : ug.displayFloorChar(floor[x][y]);
+                        if (v == Vis.CLEAR) break;
+                        String digit;
+                        {   double visibility = f[x][y];
+                            int vis = (int) (visibility * 255);
+                            digit = Integer.toHexString(vis);
+                            if (digit.length() == 1) digit = "0" + digit;
+                            digit = digit + digit + digit;
+                        }
+                        shown = "<font color='" + digit + "'>" + shown + "</font>";
+                        break;
+                    default: shown = "ERROR";
+                }
+                String inBetween = x == floorXRad ? "" : "&nbsp;";
+                labelOutput += shown + inBetween;
+            }
+            labelOutput += y == -floorYRad ? "" : "<br>";
+        }
+        
+        /*for (int y = floorYRad; y >= -floorYRad; y--) {
             
             for (int x = -floorXRad; x <= floorXRad; x++) {
                 
@@ -711,6 +809,7 @@ public class GameShell implements KeyListener {
             labelOutput += y == -floorYRad ? "" : "<br>";
             
         }
+        */
         
         labelOutput += "</html>";
         

@@ -5,9 +5,14 @@ public class GameUtil {
     private final int[][] floor;
     private final int[][] contents;
     
-    public GameUtil (int[][] floor, int[][] contents) {
-        this.floor = floor;
-        this.contents = contents;
+    private final int width;
+    private final int height;
+    
+    public GameUtil (int[][] f, int[][] c) {
+        floor = f;
+        contents = c;
+        width = floor.length;
+        height = floor[0].length;
     }
     
     /**
@@ -109,5 +114,128 @@ public class GameUtil {
         return tileClear(coords[0], coords[1]);
     }
     // none
+    
+    
+    public VisData floorVis (int x, int y) {
+        
+        x = IndexUtil.cIx(x);
+        y = IndexUtil.cIy(y);
+        
+        int[] distances = new int[4];
+        distances[0] = height - y - 1;
+        distances[1] = width - x - 1;
+        distances[2] = y;
+        distances[3] = x;
+        // Distances measures the distance from the tile specified, not including
+        // the tile itself, to the north, east, south, and west borders, in that order.
+        
+        Vis[][] ternary = new Vis[width][height];
+        double[][] fractional = new double[width][height];
+        
+        int max = distances[0] + distances[3];
+        for (int i = 0; i < 3; i++) max = distances[i] + distances[i+1] > max ? distances[i] + distances[i+1] : max;
+        
+        ternary[x][y] = Vis.CLEAR;
+        boolean[] inBounds = new boolean[4];
+        
+        for (int radius = 1; radius <= max; radius++) {
+            for (int d = 0; d < 4; d++) inBounds[d] = radius <= distances[d];
+            if (inBounds[0]) ternary[x][y+radius] = openFloor(ternary, floor, x, y+radius-1)
+                    ? Vis.CLEAR : Vis.BLOCKED;
+            if (inBounds[1]) ternary[x+radius][y] = openFloor(ternary, floor, x+radius-1, y)
+                    ? Vis.CLEAR : Vis.BLOCKED;
+            if (inBounds[2]) ternary[x][y-radius] = openFloor(ternary, floor, x, y-radius+1)
+                    ? Vis.CLEAR : Vis.BLOCKED;
+            if (inBounds[3]) ternary[x-radius][y] = openFloor(ternary, floor, x-radius+1, y)
+                    ? Vis.CLEAR : Vis.BLOCKED;
+            // Checks the midpoints of each side of the widening square.
+            
+            int i = 1;
+            if (y + radius - i >= height) i = y + radius - height + 1;
+            while (i < width - x && i < radius) {
+                
+                int thisX = x + i, thisY = y + radius - i;
+                if (openFloor(ternary, floor, thisX-1, thisY) && openFloor(ternary, floor, thisX, thisY-1))
+                    ternary[thisX][thisY] = Vis.CLEAR;
+                else if (blockedOff(ternary, floor, thisX-1, thisY) && blockedOff(ternary, floor, thisX, thisY-1))
+                    ternary[thisX][thisY] = Vis.BLOCKED;
+                else {
+                    VisDatum p = GameShell.visLOS(IndexUtil.iCx(x), IndexUtil.iCy(y), IndexUtil.iCx(thisX), IndexUtil.iCy(thisY));
+                    ternary[thisX][thisY] = p.v;
+                    if (p.v == Vis.PARTIAL) fractional[thisX][thisY] = p.f;
+                }
+                i++;
+            }
+            
+            i = 1;
+            if (y - radius + i < 0) i = radius - y;
+            while (i < width - x && i < radius) {
+                
+                int thisX = x + i, thisY = y - radius + i;
+                if (openFloor(ternary, floor, thisX-1, thisY) && openFloor(ternary, floor, thisX, thisY+1))
+                    ternary[thisX][thisY] = Vis.CLEAR;
+                else if (blockedOff(ternary, floor, thisX-1, thisY) && blockedOff(ternary, floor, thisX, thisY+1))
+                    ternary[thisX][thisY] = Vis.BLOCKED;
+                else {
+                    VisDatum p = GameShell.visLOS(IndexUtil.iCx(x), IndexUtil.iCy(y), IndexUtil.iCx(thisX), IndexUtil.iCy(thisY));
+                    ternary[thisX][thisY] = p.v;
+                    if (p.v == Vis.PARTIAL) fractional[thisX][thisY] = p.f;
+                }
+                i++;
+                
+            }
+            
+            i = 1;
+            if (y - radius + i < 0) i = radius - y;
+            while (i <= x && i < radius) {
+                
+                int thisX = x - i, thisY = y - radius + i;
+                if (openFloor(ternary, floor, thisX+1, thisY) && openFloor(ternary, floor, thisX, thisY+1))
+                    ternary[thisX][thisY] = Vis.CLEAR;
+                else if (blockedOff(ternary, floor, thisX+1, thisY) && blockedOff(ternary, floor, thisX, thisY+1))
+                    ternary[thisX][thisY] = Vis.BLOCKED;
+                else {
+                    VisDatum p = GameShell.visLOS(IndexUtil.iCx(x), IndexUtil.iCy(y), IndexUtil.iCx(thisX), IndexUtil.iCy(thisY));
+                    ternary[thisX][thisY] = p.v;
+                    if (p.v == Vis.PARTIAL) fractional[thisX][thisY] = p.f;
+                }
+                i++;
+                
+            }
+            
+            i = 1;
+            if (y + radius - i >= height) i = y + radius - height + 1;
+            while (i <= x && i < radius) {
+                
+                int thisX = x - i, thisY = y + radius - i;
+                if (openFloor(ternary, floor, thisX+1, thisY) && openFloor(ternary, floor, thisX, thisY-1))
+                    ternary[thisX][thisY] = Vis.CLEAR;
+                else if (blockedOff(ternary, floor, thisX+1, thisY) && blockedOff(ternary, floor, thisX, thisY-1))
+                    ternary[thisX][thisY] = Vis.BLOCKED;
+                else {
+                    VisDatum p = GameShell.visLOS(IndexUtil.iCx(x), IndexUtil.iCy(y), IndexUtil.iCx(thisX), IndexUtil.iCy(thisY));
+                    ternary[thisX][thisY] = p.v;
+                    if (p.v == Vis.PARTIAL) fractional[thisX][thisY] = p.f;
+                }
+                i++;
+                
+            }
+            
+        }
+        
+        VisData vd = new VisData(ternary, fractional);
+            
+        return vd;
+        
+    }
+    
+    public boolean openFloor (Vis[][] t, int[][] f, int x, int y) {
+        return ((t[x][y] == Vis.CLEAR) && (f[x][y] == 0));
+    }
+    
+    public boolean blockedOff (Vis[][] t, int[][] f, int x, int y) {
+        return ((t[x][y] == Vis.BLOCKED) || (f[x][y] == 1));
+    }
+    
     
 }
