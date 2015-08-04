@@ -764,10 +764,10 @@ public class GameShell implements KeyListener {
                         break;
                     default: shown = "ERROR";
                 }
-                String inBetween = x == floorXRad ? "" : "&nbsp;";
+                String inBetween = x == floorWidth-1 ? "" : "&nbsp;";
                 labelOutput += shown + inBetween;
             }
-            labelOutput += y == -floorYRad ? "" : "<br>";
+            labelOutput += y == 0 ? "" : "<br>";
         }
         
         /*for (int y = floorYRad; y >= -floorYRad; y--) {
